@@ -1,0 +1,200 @@
+{
+	"$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": true,
+		"defaultBranch": "main"
+	},
+	"files": {
+		"ignoreUnknown": true,
+		"ignore": ["bun.lock", ".env*", ".gitignore", "node_modules", "README.md"]
+	},
+	"formatter": {
+		"enabled": true,
+		"formatWithErrors": false,
+		"indentStyle": "tab",
+		"indentWidth": 2,
+		"lineWidth": 120,
+		"lineEnding": "lf"
+	},
+	"organizeImports": {
+		"enabled": true
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"complexity": {
+				"noUselessStringConcat": {
+					"level": "error",
+					"fix": "unsafe"
+				},
+				"useDateNow": {
+					"level": "error",
+					"fix": "unsafe"
+				},
+				"useSimplifiedLogicExpression": {
+					"level": "error",
+					"fix": "unsafe"
+				}
+			},
+			"correctness": {
+				"noConstantMathMinMaxClamp": {
+					"level": "error",
+					"fix": "unsafe"
+				},
+				"noUndeclaredVariables": {
+					"level": "error"
+				},
+				"noUnusedFunctionParameters": {
+					"level": "error",
+					"fix": "unsafe"
+				},
+				"noUnusedImports": {
+					"level": "error",
+					"fix": "safe"
+				},
+				"noUnusedVariables": {
+					"level": "error",
+					"fix": "unsafe"
+				},
+				"useArrayLiterals": {
+					"level": "error",
+					"fix": "unsafe"
+				}
+			},
+			"nursery": {
+				"noCommonJs": {
+					"level": "error"
+				},
+				"noDuplicateElseIf": {
+					"level": "error"
+				},
+				"noEnum": {
+					"level": "error"
+				},
+				"noNestedTernary": {
+					"level": "error"
+				},
+				"noSubstr": {
+					"level": "error",
+					"fix": "unsafe"
+				},
+				"noUselessEscapeInRegex": {
+					"level": "error",
+					"fix": "unsafe"
+				},
+				"useConsistentMemberAccessibility": {
+					"level": "error",
+					"options": {
+						"accessibility": "explicit"
+					}
+				},
+				"useTrimStartEnd": {
+					"level": "error",
+					"fix": "safe"
+				}
+			},
+			"performance": {
+				"useTopLevelRegex": {
+					"level": "error"
+				}
+			},
+			"style": {
+				"noNamespace": {
+					"level": "error"
+				},
+				"noNegationElse": {
+					"level": "error",
+					"fix": "safe"
+				},
+				"noParameterProperties": {
+					"level": "error"
+				},
+				"noShoutyConstants": {
+					"level": "error",
+					"fix": "unsafe"
+				},
+				"noYodaExpression": {
+					"level": "error",
+					"fix": "safe"
+				},
+				"useCollapsedElseIf": {
+					"level": "error",
+					"fix": "safe"
+				},
+				"useConsistentArrayType": {
+					"level": "error",
+					"options": {
+						"syntax": "shorthand"
+					},
+					"fix": "unsafe"
+				},
+				"useDefaultSwitchClause": {
+					"level": "error"
+				},
+				"useExplicitLengthCheck": {
+					"level": "error",
+					"fix": "unsafe"
+				},
+				"useFilenamingConvention": {
+					"level": "error",
+					"options": {
+						"strictCase": true,
+						"requireAscii": true,
+						"filenameCases": ["kebab-case"]
+					}
+				},
+				"useForOf": {
+					"level": "error"
+				},
+				"useShorthandArrayType": {
+					"level": "error",
+					"fix": "unsafe"
+				},
+				"useShorthandAssign": {
+					"level": "error",
+					"fix": "unsafe"
+				},
+				"useSingleCaseStatement": {
+					"level": "error",
+					"fix": "unsafe"
+				},
+				"useThrowNewError": {
+					"level": "error",
+					"fix": "unsafe"
+				},
+				"useThrowOnlyError": {
+					"level": "error"
+				}
+			},
+			"suspicious": {
+				"noEmptyBlockStatements": {
+					"level": "error"
+				},
+				"useAwait": {
+					"level": "error"
+				},
+				"useErrorMessage": {
+					"level": "error"
+				},
+				"useNumberToFixedDigitsArgument": {
+					"level": "error",
+					"fix": "unsafe"
+				}
+			}
+		}
+	},
+	"javascript": {
+		"formatter": {
+			"arrowParentheses": "always",
+			"bracketSpacing": true,
+			"jsxQuoteStyle": "double",
+			"quoteStyle": "double",
+			"semicolons": "always",
+			"trailingCommas": "all"
+		},
+		"globals": ["Bun"]
+	}
+}
