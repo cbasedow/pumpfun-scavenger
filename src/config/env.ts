@@ -8,7 +8,7 @@ const EnvSchema = v.object({
 	HELIUS_RPC_URL: v.pipe(v.string(), v.minLength(1)),
 	HELIUS_ENHANCED_GEYSER_WS_URL: v.pipe(v.string(), v.minLength(1)),
 	// Wallet
-	WALLET_ADDRESS: v.pipe(v.string(), v.minLength(44)),
+	WALLET_ADDRESS: v.pipe(v.string(), v.minLength(43)),
 	WALLET_PRIVATE_KEY: v.pipe(v.string(), v.minLength(1)),
 	// Upstash Redis
 	UPSTASH_REDIS_REST_URL: v.pipe(v.string(), v.minLength(1)),
