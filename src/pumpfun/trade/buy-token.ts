@@ -89,6 +89,9 @@ export const buyToken = (params: BuyTokenParams): ResultAsync<string, Error> => 
 					return heliusRpc.sendSmartTransaction({
 						signers: [WALLET_KEYPAIR],
 						instructions,
+						sendOptions: {
+							skipPreflight: true,
+						},
 					});
 				});
 			});

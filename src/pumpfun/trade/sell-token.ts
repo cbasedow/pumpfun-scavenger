@@ -79,6 +79,9 @@ export const sellToken = (params: SellTokenParams): ResultAsync<string, Error> =
 						return heliusRpc.sendSmartTransaction({
 							signers: [WALLET_KEYPAIR],
 							instructions: [sellInstruction],
+							sendOptions: {
+								skipPreflight: true,
+							},
 						});
 					},
 				);

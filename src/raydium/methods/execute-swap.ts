@@ -26,7 +26,6 @@ export const executeSwap = (params: SwapParam<TxVersion.V0>): ResultAsync<string
 			return fromPromise(
 				execute({
 					skipPreflight: true,
-					sendAndConfirm: true,
 				}),
 				(error) => new Error("Failed to execute swap transaction", { cause: handleUnknownError(error) }),
 			).map(({ txId }) => txId);
