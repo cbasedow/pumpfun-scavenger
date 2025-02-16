@@ -5,7 +5,18 @@ import type { BoughtToken, NewToken } from "../types";
 import { NEW_TOKENS_KEY } from "./new-tokens";
 
 const BOUGHT_TOKENS_KEY = "bought:tokens";
-const BOUGHT_TOKENS_DEFAULT_SCORE_MS = 15 * 60 * 1000; // Bought tokens are eligible for selling after 15 minutes
+
+const MIN_SELLABLE_AGE_MS = 15 * 60 * 1000; // 15 minutes Minimum age of a bought token to sell
+const MAX_SELLABLE_AGE_MS = 30 * 60 * 1000; // 30 minutes Maximum age of a bought token to sell
+const SELLABLE_AGE_RANGE_MS = MAX_SELLABLE_AGE_MS - MIN_SELLABLE_AGE_MS; // Age range of a bought token to sell
+
+/**
+ * Calculates a random sellable age between 15 and 30 minutes in milliseconds
+ * @returns number
+ */
+const getRandomSellableAgeDelay = (): number => {
+	return Math.floor(Math.random() * SELLABLE_AGE_RANGE_MS) + MIN_SELLABLE_AGE_MS;
+};
 
 /**
  * Removes the token from the new tokens zset and adds it to the bought tokens zset
@@ -38,12 +49,12 @@ const addToken = (boughtToken: BoughtToken, newToken: NewToken): ResultAsync<num
 };
 
 /**
- * Gets all the bought tokens that were added over 5 minutes ago
+ * Gets all eligible bought tokens that were bought between a random age of 15 to 30 minutes ago
  * @returns ResultAsync<BoughtToken[], Error>
  */
 const getTokensEligibleForSelling = (): ResultAsync<BoughtToken[], Error> => {
 	const now = Date.now();
-	const max = now - BOUGHT_TOKENS_DEFAULT_SCORE_MS;
+	const max = now - getRandomSellableAgeDelay();
 
 	return fromPromise(
 		redis.zrange<BoughtToken[]>(BOUGHT_TOKENS_KEY, "-inf", max, {
