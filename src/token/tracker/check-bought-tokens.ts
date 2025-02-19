@@ -1,5 +1,5 @@
-import { pumpfun } from "$/pumpfun";
-import { raydium } from "$/raydium";
+import { pumpfun } from "$/solana/pumpfun";
+import { raydium } from "$/solana/raydium";
 import { chunk } from "$/utils/chunk";
 import { logger } from "$/utils/logger";
 import { createPubkeys } from "$/utils/public-key";

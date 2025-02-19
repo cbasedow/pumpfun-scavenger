@@ -1,4 +1,4 @@
-import { pumpfun } from "$/pumpfun";
+import { pumpfun } from "$/solana/pumpfun";
 
 const PUMPFUN_TRANSACTION_SUBSCRIBE_REQUEST = {
 	jsonrpc: "2.0",

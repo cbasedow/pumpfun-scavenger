@@ -1,4 +1,4 @@
-import { pumpfun } from "$/pumpfun";
+import { pumpfun } from "$/solana/pumpfun";
 import { type NewToken, newTokensStore } from "$/token";
 import { bs58Decode } from "$/utils/bs58";
 import { logger } from "$/utils/logger";

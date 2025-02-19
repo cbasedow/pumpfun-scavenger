@@ -1,4 +1,4 @@
-import { pumpfun } from "$/pumpfun";
+import { pumpfun } from "$/solana/pumpfun";
 import { chunk } from "$/utils/chunk";
 import { logger } from "$/utils/logger";
 import { createPubkeys } from "$/utils/public-key";
