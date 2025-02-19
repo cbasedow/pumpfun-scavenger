@@ -1,5 +1,5 @@
 import { WALLET_KEYPAIR, WALLET_PUBKEY } from "$/config/wallet";
-import { heliusRpc } from "$/helius";
+import { solanaRpc } from "$/solana-rpc";
 import { splToken } from "$/spl-token";
 import { handleUnknownError } from "$/utils/handle-unknown-error";
 import { u64 } from "$/utils/solana-buffer-layout";
@@ -34,6 +34,7 @@ type BuyTokenParams = {
 	minSolBuyAmount: bigint;
 	buySlippagePct: number;
 };
+
 /**
  * Buys a Pumpfun token
  * @param params.mintPubkey Public Key of token mint account
@@ -86,13 +87,7 @@ export const buyToken = (params: BuyTokenParams): ResultAsync<string, Error> => 
 							buyInstructionData,
 						}),
 					);
-					return heliusRpc.sendSmartTransaction({
-						signers: [WALLET_KEYPAIR],
-						instructions,
-						sendOptions: {
-							skipPreflight: true,
-						},
-					});
+					return solanaRpc.sendTransactionWithRetries(instructions, [WALLET_KEYPAIR]);
 				});
 			});
 		})

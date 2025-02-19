@@ -1,5 +1,5 @@
 import { WALLET_KEYPAIR, WALLET_PUBKEY } from "$/config/wallet";
-import { heliusRpc } from "$/helius";
+import { solanaRpc } from "$/solana-rpc";
 import { splToken } from "$/spl-token";
 import { handleUnknownError } from "$/utils/handle-unknown-error";
 import { u64 } from "$/utils/solana-buffer-layout";
@@ -76,13 +76,7 @@ export const sellToken = (params: SellTokenParams): ResultAsync<string, Error> =
 							sellInstructionData,
 						});
 
-						return heliusRpc.sendSmartTransaction({
-							signers: [WALLET_KEYPAIR],
-							instructions: [sellInstruction],
-							sendOptions: {
-								skipPreflight: true,
-							},
-						});
+						return solanaRpc.sendTransactionWithRetries([sellInstruction], [WALLET_KEYPAIR]);
 					},
 				);
 			});
