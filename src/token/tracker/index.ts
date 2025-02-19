@@ -4,11 +4,11 @@ import { type ResultAsync, okAsync } from "neverthrow";
 import { checkBoughtTokens } from "./check-bought-tokens";
 import { checkNewTokens } from "./check-new-tokens";
 
-const CHECK_INTERVAL_MS = 60 * 1000; // Check every 60 seconds
+const CHECK_INTERVAL_MS = 30 * 1000; // Check every 30 seconds
 const COOL_DOWN_MS = 1000 as const; // 1 second
 
 /**
- * A worker that checks for new tokens and bought tokens every 60 seconds
+ * A worker that checks for new tokens and bought tokens every CHECK_INTERVAL_MS
  * @param minSolBuyAmount
  * @param buySlippagePct
  * @param sellSlippagePct
