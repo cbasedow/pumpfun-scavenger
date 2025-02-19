@@ -6,12 +6,12 @@ import { NEW_TOKENS_KEY } from "./new-tokens";
 
 const BOUGHT_TOKENS_KEY = "bought:tokens";
 
-const MIN_SELLABLE_AGE_MS = 15 * 60 * 1000; // 15 minutes Minimum age of a bought token to sell
-const MAX_SELLABLE_AGE_MS = 30 * 60 * 1000; // 30 minutes Maximum age of a bought token to sell
+const MIN_SELLABLE_AGE_MS = 10 * 60 * 1000; // 10 minutes Minimum age of a bought token to sell
+const MAX_SELLABLE_AGE_MS = 20 * 60 * 1000; // 20 minutes Maximum age of a bought token to sell
 const SELLABLE_AGE_RANGE_MS = MAX_SELLABLE_AGE_MS - MIN_SELLABLE_AGE_MS; // Age range of a bought token to sell
 
 /**
- * Calculates a random sellable age between 15 and 30 minutes in milliseconds
+ * Calculates a random sellable age between 10 and 20 minutes in milliseconds
  * @returns number
  */
 const getRandomSellableAgeDelay = (): number => {
