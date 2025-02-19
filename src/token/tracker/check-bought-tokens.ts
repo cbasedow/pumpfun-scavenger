@@ -45,7 +45,7 @@ export const checkBoughtTokens = (sellSlippagePct: number): ResultAsync<CheckBou
 					const sleepResult = index > 0 ? sleepMs(BATCH_PROCESSING_DELAY_MS) : okAsync(undefined);
 
 					return sleepResult.andThen(() =>
-						ResultAsync.combineWithAllErrors(
+						ResultAsync.combine(
 							batch.map((tokenEligibleForSelling) => {
 								return processTokenEligibleForSelling(tokenEligibleForSelling, sellSlippagePct);
 							}),
@@ -56,11 +56,10 @@ export const checkBoughtTokens = (sellSlippagePct: number): ResultAsync<CheckBou
 								),
 							)
 							.mapErr(
-								(errors) =>
-									new AggregateError(
-										errors,
-										`Failed to process batch ${index + 1}/${batches.length} of bought tokens eligible for selling`,
-									),
+								(error) =>
+									new Error(`Failed to process sellable bought tokens batch ${index + 1}/${batches.length}`, {
+										cause: error,
+									}),
 							),
 					);
 				});

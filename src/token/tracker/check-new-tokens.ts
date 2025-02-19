@@ -49,7 +49,7 @@ export const checkNewTokens = (
 						const sleepResult = index > 0 ? sleepMs(BATCH_PROCESSING_DELAY_MS) : okAsync(undefined);
 
 						return sleepResult.andThen(() => {
-							return ResultAsync.combineWithAllErrors(
+							return ResultAsync.combine(
 								batch.map((tokenEligibleForBuying) => {
 									return processTokenEligibleForBuying(tokenEligibleForBuying, minSolBuyAmount, buySlippagePct);
 								}),
@@ -60,11 +60,10 @@ export const checkNewTokens = (
 									),
 								)
 								.mapErr(
-									(errors) =>
-										new AggregateError(
-											errors,
-											`Failed to process batch ${index + 1}/${batches.length} of new tokens eligible for buying`,
-										),
+									(error) =>
+										new Error(`Failed to process buyable new tokens batch ${index + 1}/${batches.length}`, {
+											cause: error,
+										}),
 								);
 						});
 					});
