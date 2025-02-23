@@ -51,7 +51,7 @@ export const checkNewTokens = (
 						return sleepResult.andThen(() => {
 							return ResultAsync.combine(
 								batch.map((tokenEligibleForBuying) => {
-									return processTokenEligibleForBuying(tokenEligibleForBuying, minSolBuyAmount, buySlippagePct);
+									return processBuyableNewToken(tokenEligibleForBuying, minSolBuyAmount, buySlippagePct);
 								}),
 							)
 								.map(() =>
@@ -78,13 +78,12 @@ export const checkNewTokens = (
 		.mapErr((error) => new Error("Failed to check new tokens", { cause: error }));
 };
 
-const processTokenEligibleForBuying = (
-	eligibleToken: NewToken,
+const processBuyableNewToken = (
+	newToken: NewToken,
 	minSolBuyAmount: bigint,
 	buySlippagePct: number,
 ): ResultAsync<void, Error> => {
-	const { mintAddress, bondingCurveAddress, associatedBondingCurveAddress } = eligibleToken;
-	let hasTokenBeenBought = false;
+	const { mintAddress, bondingCurveAddress, associatedBondingCurveAddress } = newToken;
 
 	// Check if the bonding curve is the only holder and return false if there was an error
 	return pumpfun
@@ -92,7 +91,7 @@ const processTokenEligibleForBuying = (
 		.orElse(() => okAsync(false))
 		.andThen((bondingOnlyHolder) => {
 			if (bondingOnlyHolder === false) {
-				logger.debug(`Bonding curve is not the only holder for token ${mintAddress}, skipping`);
+				// Return early if bonding curve isnt the only holder
 				return okAsync(undefined);
 			}
 
@@ -104,7 +103,6 @@ const processTokenEligibleForBuying = (
 							return okAsync(undefined); // Skip if bonding curve migrated
 						}
 
-						logger.debug(`Attempting to buy token ${mintAddress} on Pumpfun`);
 						return pumpfun
 							.buyToken({
 								mintPubkey,
@@ -114,43 +112,23 @@ const processTokenEligibleForBuying = (
 								minSolBuyAmount,
 								buySlippagePct,
 							})
-							.andThen((txnSignature) => {
-								logger.info({
-									msg: `Successfully bought token ${mintAddress} on Pumpfun`,
-									txnSignature,
-								});
-
-								hasTokenBeenBought = true;
-
+							.andThen(({ txnSignature, boughtAtMcapSolStr }) => {
+								logger.info({ msg: `Bought ${mintAddress} on Pumpfun`, txnSignature });
 								const boughtToken: BoughtToken = {
 									mintAddress,
 									bondingCurveAddress,
 									associatedBondingCurveAddress,
 									txnSignature,
+									boughtAt: Date.now(),
+									boughtAtMcapSolStr,
+									totalChecks: 0,
 								};
 
-								return boughtTokensStore.addToken(boughtToken, eligibleToken).map(() => {
-									logger.debug({
-										msg: `Successfully stored bought token ${mintAddress} in the bought tokens store`,
-										boughtToken,
-									});
-								});
+								return boughtTokensStore.addToken(boughtToken, newToken);
 							});
 					});
 				},
 			);
-		})
-		.andThen(() => {
-			// Update the score of the new token if we successfully processed it and it was not bought
-			if (hasTokenBeenBought === false) {
-				return newTokensStore.updateTokenScore(eligibleToken).map(() =>
-					logger.debug({
-						msg: `Token ${mintAddress} was not bought, updated score for next check`,
-					}),
-				);
-			}
-
-			return okAsync(undefined);
 		})
 		.map(() => logger.debug(`Successfully processed new token ${mintAddress} eligible for buying`))
 		.mapErr((error) => new Error(`Failed to process new token ${mintAddress} eligible for buying`, { cause: error }));

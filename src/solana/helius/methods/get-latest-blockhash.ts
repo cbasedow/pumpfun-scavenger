@@ -1,11 +1,11 @@
 import { handleUnknownError } from "$/utils/handle-unknown-error";
 import type { BlockhashWithExpiryBlockHeight } from "@solana/web3.js";
 import { type ResultAsync, fromPromise } from "neverthrow";
-import { connection } from "../connection";
+import { rpcClient } from "../client";
 
 export const getLatestBlockhash = (): ResultAsync<BlockhashWithExpiryBlockHeight, Error> => {
 	return fromPromise(
-		connection.getLatestBlockhash("confirmed"),
+		rpcClient.getLatestBlockhash("confirmed"),
 		(error) => new Error("Failed to get latest blockhash", { cause: handleUnknownError(error) }),
 	);
 };

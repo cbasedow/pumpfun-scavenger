@@ -1,7 +1,7 @@
 import { handleUnknownError } from "$/utils/handle-unknown-error";
 import type { AccountInfo, PublicKey } from "@solana/web3.js";
 import { type ResultAsync, fromPromise } from "neverthrow";
-import { client } from "../client";
+import { rpcClient } from "../client";
 
 type ParsedTokenAccountInfo = {
 	isNative: boolean;
@@ -38,7 +38,7 @@ type TokenHolderAccount = {
  */
 export const getTokenHolders = (tokenAddress: string): ResultAsync<ParsedTokenAccountInfo[], Error> => {
 	return fromPromise(
-		client.rpc.getTokenHolders(tokenAddress) as Promise<TokenHolderAccount[]>,
+		rpcClient.getTokenHolders(tokenAddress) as Promise<TokenHolderAccount[]>,
 		(error) => new Error("Failed to get token holders", { cause: handleUnknownError(error) }),
 	).map((accounts) => {
 		if (accounts.length === 0) {

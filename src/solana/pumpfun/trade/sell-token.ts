@@ -1,6 +1,6 @@
 import { splToken } from "$/solana/spl-token";
+import { sendTransactionWithRetries } from "$/solana/utils/send-transaction-with-retries";
 import { WALLET_KEYPAIR, WALLET_PUBKEY } from "$/solana/wallet";
-import { web3 } from "$/solana/web3";
 import { handleUnknownError } from "$/utils/handle-unknown-error";
 import { u64 } from "$/utils/solana-buffer-layout";
 import { struct } from "@solana/buffer-layout";
@@ -8,7 +8,7 @@ import { ASSOCIATED_TOKEN_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token
 import { type AccountMeta, type PublicKey, SystemProgram, type TransactionInstruction } from "@solana/web3.js";
 import { type Result, type ResultAsync, errAsync, fromThrowable } from "neverthrow";
 import { PUMPFUN_EVENT_AUTHORITY, PUMPFUN_FEE_ACCOUNT, PUMPFUN_GLOBAL_ACCOUNT, PUMPFUN_PROGRAM_ID } from "../constants";
-import type { BondingCurveState } from "../types";
+import type { BondingCurveState, PercentOfTokensToSellNonZero } from "../types";
 
 type SellInstructionArgs = {
 	amount: bigint;
@@ -27,6 +27,7 @@ type SellTokenParams = {
 	associatedBondingCurvePubkey: PublicKey;
 	bondingCurveState: BondingCurveState;
 	sellSlippagePct: number;
+	percentOfTokensToSell: PercentOfTokensToSellNonZero;
 };
 
 /**
@@ -39,7 +40,14 @@ type SellTokenParams = {
  * @returns ResultAsync<string(transaction signature), HeliusRpcError, SplTokenError, PumpfunError, Error>
  */
 export const sellToken = (params: SellTokenParams): ResultAsync<string, Error> => {
-	const { mintPubkey, bondingCurvePubkey, associatedBondingCurvePubkey, bondingCurveState, sellSlippagePct } = params;
+	const {
+		mintPubkey,
+		bondingCurvePubkey,
+		associatedBondingCurvePubkey,
+		bondingCurveState,
+		sellSlippagePct,
+		percentOfTokensToSell,
+	} = params;
 
 	return splToken
 		.getAssociatedTokenPubkey(mintPubkey, WALLET_PUBKEY)
@@ -55,33 +63,44 @@ export const sellToken = (params: SellTokenParams): ResultAsync<string, Error> =
 					return errAsync(new Error("No tokens held"));
 				}
 
-				return calculateMinSolOutput(bondingCurveState, tokenAmountHeld, sellSlippagePct).asyncAndThen(
-					(minSolOutput) => {
-						const sellInstructionData = Buffer.alloc(SELL_BUFFER_SIZE);
-						sellInstructionData.set(SELL_DISCRIMINATOR, 0);
-						SELL_INSTRUCTION_STRUCT.encode(
-							{
-								amount: tokenAmountHeld,
-								minSolOutput,
-							},
-							sellInstructionData,
-							SELL_DISCRIMINATOR_SIZE,
-						);
+				return calculateMinSolOutput(
+					bondingCurveState,
+					tokenAmountHeld,
+					sellSlippagePct,
+					percentOfTokensToSell,
+				).asyncAndThen((minSolOutput) => {
+					const sellInstructionData = Buffer.alloc(SELL_BUFFER_SIZE);
+					sellInstructionData.set(SELL_DISCRIMINATOR, 0);
+					SELL_INSTRUCTION_STRUCT.encode(
+						{
+							amount: tokenAmountHeld,
+							minSolOutput,
+						},
+						sellInstructionData,
+						SELL_DISCRIMINATOR_SIZE,
+					);
 
-						const sellInstruction = createSellInstruction({
-							mintPubkey,
-							bondingCurvePubkey,
-							associatedBondingCurvePubkey,
-							ataPubkey,
-							sellInstructionData,
-						});
+					const sellInstruction = createSellInstruction({
+						mintPubkey,
+						bondingCurvePubkey,
+						associatedBondingCurvePubkey,
+						ataPubkey,
+						sellInstructionData,
+					});
 
-						return web3.sendTransactionWithRetries([sellInstruction], [WALLET_KEYPAIR]);
-					},
-				);
+					return sendTransactionWithRetries({
+						instructions: [sellInstruction],
+						signers: [WALLET_KEYPAIR],
+						sendOptions: {
+							skipPreflight: true,
+							maxRetries: 0,
+							preflightCommitment: "confirmed",
+						},
+					});
+				});
 			});
 		})
-		.mapErr((error) => new Error(`Failed to sell Pumpfun token: ${error.message}`));
+		.mapErr((error) => new Error("Failed to sell Pumpfun token", { cause: error }));
 };
 
 /**
@@ -89,21 +108,24 @@ export const sellToken = (params: SellTokenParams): ResultAsync<string, Error> =
  * @param bondingCurveState Decoded Pumpfun bonding curve state
  * @param tokenAmountHeld Amount of tokens held by our associated token account
  * @param sellSlippagePct Sell slippage percentage
+ * @param percentOfTokensToSell Percent of tokens to sell
  * @returns Result<bigint, Error>
  */
 const calculateMinSolOutput = (
 	bondingCurveState: BondingCurveState,
 	tokenAmountHeld: bigint,
 	sellSlippagePct: number,
+	percentOfTokensToSell: PercentOfTokensToSellNonZero,
 ): Result<bigint, Error> => {
 	const { virtualSolReserves, virtualTokenReserves } = bondingCurveState;
-
 	return fromThrowable(
 		() => {
 			const k = virtualSolReserves * virtualTokenReserves; // Constant product formula
 
-			const newTokenReservers = virtualTokenReserves + tokenAmountHeld; // New virtual token reserves after purchase
-			const newSolReserves = BigInt(k / newTokenReservers) + 1n; // New virtual sol reserves after purchase
+			const tokensToSell = (tokenAmountHeld * BigInt(percentOfTokensToSell)) / 100n; // Amount of tokens to sell
+
+			const newTokenReservers = virtualTokenReserves + tokensToSell; // New virtual token reserves after sell
+			const newSolReserves = BigInt(k / newTokenReservers) + 1n; // New virtual sol reserves after sell
 
 			const solOutput = virtualSolReserves - newSolReserves; // Amount of sol to sell
 
@@ -111,7 +133,7 @@ const calculateMinSolOutput = (
 
 			return minSolOutput;
 		},
-		(error) => new Error(`Failed to calculate minSolOutput: ${handleUnknownError(error).message}`),
+		(error) => new Error("Failed to calculate minSolOutput", { cause: handleUnknownError(error) }),
 	)();
 };
 

@@ -1,9 +1,11 @@
 import { connection } from "./connection";
+import { confirmTransaction } from "./methods/confirm-transaction";
 import { getAccountInfo } from "./methods/get-account-info";
-import { sendTransactionWithRetries } from "./utils/send-transaction-with-retries";
+import { simulateVersionedTransaction } from "./methods/simulate-versioned-transaction";
 
 export const web3 = {
 	connection,
+	confirmTransaction,
 	getAccountInfo,
-	sendTransactionWithRetries,
+	simulateVersionedTransaction,
 } as const;

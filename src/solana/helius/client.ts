@@ -1,4 +1,5 @@
 import { env } from "$/config/env";
-import { Helius } from "helius-sdk";
+import { RpcClient } from "helius-sdk";
+import { web3 } from "../web3";
 
-export const client = new Helius(env.HELIUS_API_KEY);
+export const rpcClient = new RpcClient(web3.connection, env.HELIUS_API_KEY);

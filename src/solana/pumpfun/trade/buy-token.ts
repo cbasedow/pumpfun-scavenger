@@ -1,6 +1,6 @@
 import { splToken } from "$/solana/spl-token";
+import { sendTransactionWithRetries } from "$/solana/utils/send-transaction-with-retries";
 import { WALLET_KEYPAIR, WALLET_PUBKEY } from "$/solana/wallet";
-import { web3 } from "$/solana/web3";
 import { handleUnknownError } from "$/utils/handle-unknown-error";
 import { u64 } from "$/utils/solana-buffer-layout";
 import { struct } from "@solana/buffer-layout";
@@ -15,6 +15,7 @@ import {
 import { type Result, type ResultAsync, fromThrowable } from "neverthrow";
 import { PUMPFUN_EVENT_AUTHORITY, PUMPFUN_FEE_ACCOUNT, PUMPFUN_GLOBAL_ACCOUNT, PUMPFUN_PROGRAM_ID } from "../constants";
 import type { BondingCurveState } from "../types";
+import { calculateMcapSolAfterTradeBn } from "../utils/calculate-mcap-sol-after-trade-bn";
 
 type BuyInstructionArgs = {
 	amount: bigint;
@@ -25,6 +26,11 @@ const BUY_INSTRUCTION_STRUCT = struct<BuyInstructionArgs>([u64("amount"), u64("m
 const BUY_DISCRIMINATOR = [102, 6, 61, 18, 1, 218, 235, 234] as const;
 const BUY_DISCRIMINATOR_SIZE = 8 as const;
 const BUY_BUFFER_SIZE = 24 as const;
+
+type BuyTokenResult = {
+	txnSignature: string;
+	boughtAtMcapSolStr: string;
+};
 
 type BuyTokenParams = {
 	mintPubkey: PublicKey;
@@ -45,7 +51,7 @@ type BuyTokenParams = {
  * @param params.buySlippagePct Slippage percentage to use for the buy
  * @returns ResultAsync<string (transaction signature), Error>
  */
-export const buyToken = (params: BuyTokenParams): ResultAsync<string, Error> => {
+export const buyToken = (params: BuyTokenParams): ResultAsync<BuyTokenResult, Error> => {
 	const {
 		mintPubkey,
 		bondingCurvePubkey,
@@ -87,7 +93,26 @@ export const buyToken = (params: BuyTokenParams): ResultAsync<string, Error> => 
 							buyInstructionData,
 						}),
 					);
-					return web3.sendTransactionWithRetries(instructions, [WALLET_KEYPAIR]);
+					return sendTransactionWithRetries({
+						instructions,
+						signers: [WALLET_KEYPAIR],
+						sendOptions: {
+							skipPreflight: true,
+							maxRetries: 0,
+							preflightCommitment: "confirmed",
+						},
+					}).andThen((txnSignature) => {
+						return calculateMcapSolAfterTradeBn({
+							bondingCurveState,
+							tokensToTrade: amount,
+							tradeType: "BUY",
+						}).map((boughtAtMcapSolBn) => {
+							return {
+								txnSignature,
+								boughtAtMcapSolStr: boughtAtMcapSolBn.toString(),
+							};
+						});
+					});
 				});
 			});
 		})

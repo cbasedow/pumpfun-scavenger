@@ -1,10 +1,13 @@
-import { pumpfun } from "$/solana/pumpfun";
+import { type BondingCurveState, pumpfun } from "$/solana/pumpfun";
+import { calculateCurrMcapSolBn } from "$/solana/pumpfun/utils/calculate-curr-mcap-sol-bn";
 import { raydium } from "$/solana/raydium";
 import { chunk } from "$/utils/chunk";
+import { handleUnknownError } from "$/utils/handle-unknown-error";
 import { logger } from "$/utils/logger";
 import { createPubkeys } from "$/utils/public-key";
 import { sleepMs } from "$/utils/sleep";
-import { ResultAsync, okAsync } from "neverthrow";
+import BigNumber from "bignumber.js";
+import { type Result, ResultAsync, fromThrowable, ok, okAsync } from "neverthrow";
 import { boughtTokensStore } from "../store/bought-tokens";
 import type { BoughtToken } from "../types";
 
@@ -17,6 +20,10 @@ type CheckBoughtTokensStatus = (typeof CHECK_BOUGHT_TOKENS_STATUS)[keyof typeof 
 
 const MAX_BATCH_SIZE = 20 as const;
 const BATCH_PROCESSING_DELAY_MS = 1000 as const; // 1 second between batch processing
+
+const MAX_CHECKS = 3 as const; // Maximum number of checks before selling all tokens
+
+const MAX_BOUGHT_TOKEN_AGE_MS = 20 * 60 * 1000; // 20 minutes max age until selling 100% of the token
 
 /**
  * Checks for bought tokens eligible for selling
@@ -47,7 +54,7 @@ export const checkBoughtTokens = (sellSlippagePct: number): ResultAsync<CheckBou
 					return sleepResult.andThen(() =>
 						ResultAsync.combine(
 							batch.map((tokenEligibleForSelling) => {
-								return processTokenEligibleForSelling(tokenEligibleForSelling, sellSlippagePct);
+								return processSellableBoughtToken(tokenEligibleForSelling, sellSlippagePct);
 							}),
 						)
 							.map(() =>
@@ -73,59 +80,107 @@ export const checkBoughtTokens = (sellSlippagePct: number): ResultAsync<CheckBou
 		.mapErr((error) => new Error("Failed to check bought tokens", { cause: error }));
 };
 
-const processTokenEligibleForSelling = (
-	eligibleToken: BoughtToken,
-	sellSlippagePct: number,
-): ResultAsync<void, Error> => {
-	const { mintAddress, bondingCurveAddress, associatedBondingCurveAddress } = eligibleToken;
+const processSellableBoughtToken = (boughtToken: BoughtToken, sellSlippagePct: number): ResultAsync<void, Error> => {
+	const { mintAddress, bondingCurveAddress, associatedBondingCurveAddress, boughtAt, boughtAtMcapSolStr, totalChecks } =
+		boughtToken;
 
 	return createPubkeys([mintAddress, bondingCurveAddress, associatedBondingCurveAddress])
 		.asyncAndThen(([mintPubkey, bondingCurvePubkey, associatedBondingCurvePubkey]) => {
 			return pumpfun.decodeBondingCurveState(bondingCurvePubkey).andThen((bondingCurveState) => {
 				if (bondingCurveState.complete === true) {
-					// Sell on Raydium if the bonding curve is already migrated to Raydium
-					logger.debug(`Bonding curve for token ${mintAddress} migrated, attempting to sell on Raydium`);
+					// Sell 100% of the token if the bonding curve has already migrated to Raydium
 					return raydium.sellToken(mintPubkey, sellSlippagePct).andThen((raydiumSellTxnSignature) => {
-						logger.info({
-							msg: `Successfully sold token ${mintAddress} on Raydium`,
-							txnSignature: raydiumSellTxnSignature,
-						});
-
-						return boughtTokensStore.removeToken(eligibleToken).map(() => {
-							logger.debug({
-								msg: `Successfully removed bought token ${mintAddress} from the bought tokens store`,
-								boughtToken: eligibleToken,
+						return boughtTokensStore.removeToken(boughtToken).map(() => {
+							logger.info({
+								msg: `Sold ${mintAddress} on Raydium and removed from the bought tokens store`,
+								txnSignature: raydiumSellTxnSignature,
 							});
 						});
 					});
 				}
-
-				// Sell on Pumpfun if the bonding curve is not already migrated to Raydium
-				logger.debug(`Bonding curve for token ${mintAddress} not migrated, attempting to sell on Pumpfun`);
-				return pumpfun
-					.sellToken({
-						mintPubkey,
-						bondingCurvePubkey,
-						associatedBondingCurvePubkey,
-						bondingCurveState,
-						sellSlippagePct,
-					})
-					.andThen((pumpfunSellTxnSignature) => {
+				return calculatePercentToSell(totalChecks, boughtAt, boughtAtMcapSolStr, bondingCurveState).asyncAndThen(
+					(percentOfTokensToSell) => {
 						logger.info({
-							msg: `Successfully sold token ${mintAddress} on Pumpfun`,
-							txnSignature: pumpfunSellTxnSignature,
+							msg: `Calculated percent to sell for token ${mintAddress}`,
+							percentOfTokensToSell,
 						});
-						return boughtTokensStore.removeToken(eligibleToken).map(() =>
-							logger.info({
-								msg: `Successfully removed bought token ${mintAddress} from the bought tokens store`,
-								boughtToken: eligibleToken,
-							}),
-						);
-					});
+
+						if (percentOfTokensToSell === 0) {
+							return boughtTokensStore.updateTokenScoreAndTotalChecks(boughtToken).map(() => undefined);
+						}
+
+						return pumpfun
+							.sellToken({
+								mintPubkey,
+								bondingCurvePubkey,
+								associatedBondingCurvePubkey,
+								bondingCurveState,
+								sellSlippagePct,
+								percentOfTokensToSell,
+							})
+							.andThen((sellTxnSignature) => {
+								if (percentOfTokensToSell === 100) {
+									return boughtTokensStore.removeToken(boughtToken).map(() =>
+										logger.info({
+											msg: `Sold 100% of ${mintAddress} on Pumpfun`,
+											txnSignature: sellTxnSignature,
+										}),
+									);
+								}
+
+								return boughtTokensStore.updateTokenScoreAndTotalChecks(boughtToken).map(() =>
+									logger.info({
+										msg: `Sold ${percentOfTokensToSell}% of ${mintAddress} on Pumpfun`,
+										txnSignature: sellTxnSignature,
+									}),
+								);
+							});
+					},
+				);
 			});
 		})
 		.map(() => logger.debug(`Successfully processed bought token ${mintAddress} eligible for selling`))
 		.mapErr(
 			(error) => new Error(`Failed to process bought token ${mintAddress} eligible for selling`, { cause: error }),
 		);
+};
+
+type PercentToSell = 0 | 25 | 75 | 100;
+
+const calculatePercentToSell = (
+	totalChecks: number,
+	boughtAt: number,
+	boughtAtMcapSolStr: string,
+	bondingCurveState: BondingCurveState,
+): Result<PercentToSell, Error> => {
+	const ageMs = Date.now() - boughtAt;
+	// Sell 100% of the token balance if we are on the last check or the token is too old
+	if (totalChecks + 1 >= MAX_CHECKS || ageMs > MAX_BOUGHT_TOKEN_AGE_MS) {
+		return ok(100);
+	}
+
+	return calculateCurrMcapSolBn(bondingCurveState).andThen((currMcapSolBn) => {
+		return fromThrowable(
+			() => {
+				const boughtAtMcapSolBn = new BigNumber(boughtAtMcapSolStr);
+				const mcapSolPercentDiffBn = currMcapSolBn
+					.minus(boughtAtMcapSolBn)
+					.dividedBy(boughtAtMcapSolBn)
+					.multipliedBy(100);
+				return mcapSolPercentDiffBn.toNumber();
+			},
+			(error) =>
+				new Error("Failed to calculate market cap SOL percent difference", { cause: handleUnknownError(error) }),
+		)().map((mcapSolPercentDiff) => {
+			if (mcapSolPercentDiff >= 500) {
+				return 75; // Sell 75% of the token balance if the market cap SOL percent difference is greater than 500%
+			}
+
+			if (mcapSolPercentDiff >= 100) {
+				return 25; // Sell 25% of the token balance if the market cap SOL percent difference is greater than 100%
+			}
+
+			return 0; // Sell 0% of the token balance if the market cap SOL percent difference is less than 100%
+		});
+	});
 };

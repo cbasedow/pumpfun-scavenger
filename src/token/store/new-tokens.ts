@@ -62,36 +62,6 @@ const getTokensEligibleForBuying = (): ResultAsync<NewToken[], Error> => {
 };
 
 /**
- * Updates the score of a token in the new tokens zset
- * @param token
- * @returns ResultAsync<number, Error>
- */
-const updateTokenScore = (token: NewToken): ResultAsync<number, Error> => {
-	const score = Date.now(); // New score will be the current timestamp
-
-	return fromPromise(
-		redis.zadd<NewToken>(
-			NEW_TOKENS_KEY,
-			{
-				xx: true, // Only update the score if the token exists
-			},
-			{
-				score,
-				member: token,
-			},
-		),
-		(error) => new Error("Failed to execute Redis ZADD", { cause: handleUnknownError(error) }),
-	)
-		.andThen((result) => {
-			if (result === null) {
-				return errAsync(new Error("ZADD operation returned null"));
-			}
-			return okAsync(result);
-		})
-		.mapErr((error) => new Error("Failed to update new token score in Redis", { cause: error }));
-};
-
-/**
  * Removes any expired tokens from the new tokens zset
  * @returns ResultAsync<number, Error>
  */
@@ -126,6 +96,5 @@ const removeExpiredTokens = (): ResultAsync<number, Error> => {
 export const newTokensStore = {
 	addToken,
 	getTokensEligibleForBuying,
-	updateTokenScore,
 	removeExpiredTokens,
 } as const;

@@ -6,3 +6,5 @@ export type BondingCurveState = {
 	tokenTotalSupply: bigint;
 	complete: boolean;
 };
+
+export type PercentOfTokensToSellNonZero = 25 | 75 | 100;

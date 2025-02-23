@@ -1,6 +1,5 @@
 import { helius } from "$/solana/helius";
 import { WALLET_PUBKEY } from "$/solana/wallet";
-import { getLatestBlockhash } from "$/solana/web3/methods/get-latest-blockhash";
 import { bs58Encode } from "$/utils/bs58";
 import { logger } from "$/utils/logger";
 import {
@@ -10,7 +9,7 @@ import {
 	TransactionMessage,
 	VersionedTransaction,
 } from "@solana/web3.js";
-import { PriorityLevel } from "helius-sdk";
+import { type HeliusSendOptions, PriorityLevel } from "helius-sdk";
 import { type ResultAsync, errAsync, fromSafePromise } from "neverthrow";
 import { sendAndConfirmTransaction } from "./send-and-confirm-transaction";
 
@@ -19,16 +18,20 @@ const RETRY_DELAY_MS = 1000 as const;
 const DEFAULT_PRIORITY_FEE_ESTIMATE = 50000 as const;
 const COMPUTE_UNIT_LIMIT = 100_000 as const;
 
-const attemptSendTransaction = (
-	instructions: TransactionInstruction[],
-	signers: Signer[],
-	attempt = 1,
-): ResultAsync<string, Error> => {
+type SendTransactionWithRetriesParams = {
+	instructions: TransactionInstruction[];
+	signers: Signer[];
+	sendOptions?: HeliusSendOptions;
+};
+
+const attemptSendTransaction = (params: SendTransactionWithRetriesParams, attempt = 1): ResultAsync<string, Error> => {
+	const { instructions, signers, sendOptions } = params;
+
 	if (signers.length === 0) {
 		return errAsync(new Error("No signers provided"));
 	}
 
-	return getLatestBlockhash().andThen(({ blockhash, lastValidBlockHeight }) => {
+	return helius.getLatestBlockhash().andThen(({ blockhash, lastValidBlockHeight }) => {
 		const initialMessageV0 = new TransactionMessage({
 			payerKey: WALLET_PUBKEY,
 			recentBlockhash: blockhash,
@@ -38,9 +41,7 @@ const attemptSendTransaction = (
 		const initialTransaction = new VersionedTransaction(initialMessageV0);
 		initialTransaction.sign(signers);
 
-		const serializedInitialTransaction = initialTransaction.serialize();
-
-		return bs58Encode(serializedInitialTransaction).asyncAndThen((encodedTransactionStr) => {
+		return bs58Encode(initialTransaction.serialize()).asyncAndThen((encodedTransactionStr) => {
 			return helius
 				.getPriorityFeeEstimate({
 					transaction: encodedTransactionStr,
@@ -69,11 +70,7 @@ const attemptSendTransaction = (
 
 					return sendAndConfirmTransaction({
 						transaction: finalTransaction,
-						sendOptions: {
-							skipPreflight: true,
-							maxRetries: 0,
-							preflightCommitment: "confirmed",
-						},
+						sendOptions,
 						latestBlockhash: blockhash,
 						lastValidBlockHeight,
 					}).orElse((error) => {
@@ -88,7 +85,7 @@ const attemptSendTransaction = (
 						});
 
 						return fromSafePromise(new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS))).andThen(() =>
-							attemptSendTransaction(instructions, signers, attempt + 1),
+							attemptSendTransaction(params, attempt + 1),
 						);
 					});
 				});
@@ -96,9 +93,6 @@ const attemptSendTransaction = (
 	});
 };
 
-export const sendTransactionWithRetries = (
-	instructions: TransactionInstruction[],
-	signers: Signer[],
-): ResultAsync<string, Error> => {
-	return attemptSendTransaction(instructions, signers);
+export const sendTransactionWithRetries = (params: SendTransactionWithRetriesParams): ResultAsync<string, Error> => {
+	return attemptSendTransaction(params);
 };

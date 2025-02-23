@@ -6,4 +6,6 @@ export const client = await Raydium.load({
 	connection: web3.connection,
 	owner: WALLET_KEYPAIR,
 	disableLoadToken: true,
+	apiCacheTime: 0,
+	blockhashCommitment: "confirmed",
 });

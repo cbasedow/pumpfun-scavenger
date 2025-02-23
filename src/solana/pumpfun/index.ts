@@ -1,4 +1,4 @@
-import { PUMPFUN_PROGRAM_ID } from "./constants";
+import { BONDING_CURVE_STATE_DECIMALS, PUMPFUN_PROGRAM_ID } from "./constants";
 import { buyToken } from "./trade/buy-token";
 import { sellToken } from "./trade/sell-token";
 import { decodeBondingCurveState } from "./utils/decode-bonding-curve-state";
@@ -12,4 +12,5 @@ export const pumpfun = {
 	buyToken,
 	sellToken,
 	PUMPFUN_PROGRAM_ID,
+	BONDING_CURVE_STATE_DECIMALS,
 } as const;

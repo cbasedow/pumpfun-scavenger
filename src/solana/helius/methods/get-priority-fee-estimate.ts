@@ -1,7 +1,7 @@
 import { handleUnknownError } from "$/utils/handle-unknown-error";
 import type { GetPriorityFeeEstimateRequest, GetPriorityFeeEstimateResponse } from "helius-sdk";
 import { type ResultAsync, fromPromise } from "neverthrow";
-import { client } from "../client";
+import { rpcClient } from "../client";
 
 /**
  * Gets the priority fee estimate
@@ -12,7 +12,7 @@ export const getPriorityFeeEstimate = (
 	params: GetPriorityFeeEstimateRequest,
 ): ResultAsync<GetPriorityFeeEstimateResponse, Error> => {
 	return fromPromise(
-		client.rpc.getPriorityFeeEstimate(params),
+		rpcClient.getPriorityFeeEstimate(params),
 		(error) => new Error("Failed to get priority fee estimate", { cause: handleUnknownError(error) }),
 	);
 };
